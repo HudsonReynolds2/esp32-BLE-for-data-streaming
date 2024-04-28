@@ -1,14 +1,31 @@
-/**
- * A BLE client example that is rich in capabilities.
- * There is a lot new capabilities implemented.
- * author unknown
- * updated by chegewara
- */
-
-// We should connect the display to this
+#include <GxEPD.h>
+#include <GxDEPG0150BN/GxDEPG0150BN.h>    // 1.54" b/w 200x200
+// #include <GxGDEH0154Z90/GxGDEH0154Z90.h>  // 1.54" b/w/r 200x200
+#include <GxIO/GxIO_SPI/GxIO_SPI.h>
+#include <GxIO/GxIO.h>
+//#include <WiFi.h>
+#include "IMG.h"
+//#include "buff.h"    // POST request data accumulator
+//#include "scripts.h" // JavaScript code
+//#include "css.h"     // Cascading Style Sheets
+//#include "html.h"    // HTML page of the tool
 
 #include "BLEDevice.h"
-//#include "BLEScan.h"
+
+
+#define PIN_MOTOR 4
+#define PIN_KEY 35
+#define PWR_EN 5
+#define Backlight 33
+
+#define SPI_SCK 14
+#define SPI_DIN 13
+#define EPD_CS 15
+#define EPD_DC 2
+#define SRAM_CS -1
+#define EPD_RESET 17
+#define EPD_BUSY 16
+
 
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
@@ -21,11 +38,25 @@ static boolean doScan = false;
 static BLERemoteCharacteristic* pRemoteCharacteristic;
 static BLEAdvertisedDevice* myDevice;
 
+
+int EPD_dispIndex; // The index of the e-Paper's type
+// uint8_t EPD_Image[5000] = {0};
+// uint16_t EPD_Image_count = 0;
+GxIO_Class io(SPI, /*CS=*/ 15, /*DC=*/2, /*RST=*/17);
+GxEPD_Class display(io, /*RST=*/17, /*BUSY=*/16);
+
+
+uint8_t* receivedData;
+size_t dataLength;
+
+
 static void notifyCallback(
   BLERemoteCharacteristic* pBLERemoteCharacteristic,
   uint8_t* pData,
   size_t length,
   bool isNotify) {
+    receivedData = pData;
+    dataLength = length;
     Serial.print("Notify callback for characteristic ");
     Serial.print(pBLERemoteCharacteristic->getUUID().toString().c_str());
     Serial.print(" of data length ");
@@ -48,17 +79,6 @@ class MyClientCallback : public BLEClientCallbacks {
 bool connectToServer() {
     Serial.print("Forming a connection to ");
     Serial.println(myDevice->getAddress().toString().c_str());
-    
-    
-    
-    
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(0, 100);
-    display.print(myDevice->getAddress().toString().c_str());
-    display.update();
-
-
-
     
     BLEClient*  pClient  = BLEDevice::createClient();
     Serial.println(" - Created client");
@@ -104,9 +124,7 @@ bool connectToServer() {
     connected = true;
     return true;
 }
-/**
- * Scan for BLE servers and find the first one that advertises the service we are looking for.
- */
+
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
  /**
    * Called for each advertising BLE server.
@@ -127,11 +145,42 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
   } // onResult
 }; // MyAdvertisedDeviceCallbacks
 
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
-  Serial.println("Starting Arduino BLE Client application...");
+  delay(10);
+  Serial.println("ESP32 BLE text display test");
+  SPI.begin(SPI_SCK, -1, SPI_DIN, EPD_CS);
+  pinMode(PIN_MOTOR, OUTPUT);
+  pinMode(PWR_EN,OUTPUT);
+
+  digitalWrite(PWR_EN,HIGH);
+  digitalWrite(PIN_MOTOR, HIGH);
+  delay(200);
+  digitalWrite(PIN_MOTOR, LOW);
+  delay(100);
+  digitalWrite(PIN_MOTOR, HIGH);
+  delay(200);
+  digitalWrite(PIN_MOTOR, LOW);
+
+
   BLEDevice::init("");
+
+
+  display.init();
+  display.setRotation(0);
+  display.setTextColor(GxEPD_BLACK);
+  display.fillScreen(GxEPD_WHITE);
+  display.drawBitmap(0, 0, lilygo, 200, 200, GxEPD_BLACK);
+  display.update();
+  delay(3000);
+
+  display.fillScreen(GxEPD_WHITE);
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.print("Waiting Connect");
+  display.update();
+
 
   // Retrieve a Scanner and set the callback we want to use to be informed when we
   // have detected a new device.  Specify that we want active scanning and start the
@@ -142,11 +191,10 @@ void setup() {
   pBLEScan->setWindow(449);
   pBLEScan->setActiveScan(true);
   pBLEScan->start(5, false);
-} // End of setup.
+}
 
-
-void loop() {
-
+void loop()
+{
   // If the flag "doConnect" is true then we have scanned for and found the desired
   // BLE Server with which we wish to connect.  Now we connect to it.  Once we are 
   // connected we set the connected flag to be true.
@@ -162,14 +210,30 @@ void loop() {
   // If we are connected to a peer BLE Server, update the characteristic each time we are reached
   // with the current time since boot.
   if (connected) {
+    
+    // This is how we create the string object from the received data
+    String dataString(reinterpret_cast<char*>(receivedData), dataLength); // This is how we create the string object from the received data
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(0, 0);
+    display.print(dataString);  // Change this to the value we just received 
+    display.update();
+    
     String newValue = "Time since boot: " + String(millis()/1000);
     Serial.println("Setting new characteristic value to \"" + newValue + "\"");
     
     // Set the characteristic's value to be the array of bytes that is actually a string.
     pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());
+
+    // Reset them to prepare for next data reception
+    receivedData = nullptr;
+    dataLength = 0;
   }else if(doScan){
     BLEDevice::getScan()->start(0);  // this is just example to start scan after disconnect, most likely there is better way to do it in arduino
   }
   
-  delay(1000); // Delay a second between loops.
-} // End of loop
+
+
+
+  delay(500); // Delay half a second between loops.
+}
+
