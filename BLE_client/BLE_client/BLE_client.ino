@@ -49,17 +49,6 @@ bool connectToServer() {
     Serial.print("Forming a connection to ");
     Serial.println(myDevice->getAddress().toString().c_str());
     
-    
-    
-    
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(0, 100);
-    display.print(myDevice->getAddress().toString().c_str());
-    display.update();
-
-
-
-    
     BLEClient*  pClient  = BLEDevice::createClient();
     Serial.println(" - Created client");
 
