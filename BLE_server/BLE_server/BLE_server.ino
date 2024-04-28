@@ -4,8 +4,6 @@
     updates by chegewara
 */
 
-// We should connect the heart rate sensor to this
-
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
@@ -16,32 +14,39 @@
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
+static BLEServer *pServer = NULL; // Declare pServer globally
+static BLEService *pService = NULL;
+static BLECharacteristic *pCharacteristic = NULL; // Declare pTxCharacteristic globally
+
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting BLE work!");
 
-  BLEDevice::init("Long name works now");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+  BLEDevice::init("TestHeartRateBLE");
+  pServer = BLEDevice::createServer();
+  pService = pServer->createService(SERVICE_UUID);
+  pCharacteristic = pService->createCharacteristic(
                                          CHARACTERISTIC_UUID,
                                          BLECharacteristic::PROPERTY_READ |
                                          BLECharacteristic::PROPERTY_WRITE
                                        );
 
-  pCharacteristic->setValue("Hello World says Neil");
+  pCharacteristic->setValue("Hello World says Hudson");
   pService->start();
   // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  static BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
-  Serial.println("Characteristic defined! Now you can read it in your phone!");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(2000);
+  int randVal = random(50,201);
+  pCharacteristic->setValue(randVal);
+  pCharacteristic->notify();
+  delay(1000);
 }
