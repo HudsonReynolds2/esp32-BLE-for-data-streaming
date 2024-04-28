@@ -3,12 +3,7 @@
 // #include <GxGDEH0154Z90/GxGDEH0154Z90.h>  // 1.54" b/w/r 200x200
 #include <GxIO/GxIO_SPI/GxIO_SPI.h>
 #include <GxIO/GxIO.h>
-//#include <WiFi.h>
 #include "IMG.h"
-//#include "buff.h"    // POST request data accumulator
-//#include "scripts.h" // JavaScript code
-//#include "css.h"     // Cascading Style Sheets
-//#include "html.h"    // HTML page of the tool
 
 #include "BLEDevice.h"
 
@@ -40,14 +35,13 @@ static BLEAdvertisedDevice* myDevice;
 
 
 int EPD_dispIndex; // The index of the e-Paper's type
-// uint8_t EPD_Image[5000] = {0};
-// uint16_t EPD_Image_count = 0;
 GxIO_Class io(SPI, /*CS=*/ 15, /*DC=*/2, /*RST=*/17);
 GxEPD_Class display(io, /*RST=*/17, /*BUSY=*/16);
 
 
 uint8_t* receivedData;
 size_t dataLength;
+String previousValue;
 
 
 static void notifyCallback(
@@ -213,10 +207,23 @@ void loop()
     
     // This is how we create the string object from the received data
     String dataString(reinterpret_cast<char*>(receivedData), dataLength); // This is how we create the string object from the received data
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(0, 0);
-    display.print(dataString);  // Change this to the value we just received 
-    display.update();
+    
+    if ( dataString != previousValue ) // Only update when we get a new number
+    {
+      // Clear only the area where the text will be updated
+      display.fillRect(0, 0, display.width(), 25, GxEPD_WHITE);  // 25 pixels is a guess of the height of the size 2 font
+      
+      // Set the cursor position and print the new data
+      display.setCursor(0, 0);
+      display.print(dataString);
+
+      // Update only the area where the text was updated
+      display.updateWindow(0, 0, display.width(), 25, false);
+
+      previousValue = dataString;
+    }
+
+
     
     String newValue = "Time since boot: " + String(millis()/1000);
     Serial.println("Setting new characteristic value to \"" + newValue + "\"");
@@ -231,9 +238,6 @@ void loop()
     BLEDevice::getScan()->start(0);  // this is just example to start scan after disconnect, most likely there is better way to do it in arduino
   }
   
-
-
-
   delay(500); // Delay half a second between loops.
 }
 
