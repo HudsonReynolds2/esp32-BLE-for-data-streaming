@@ -27,7 +27,7 @@ void setup() {
   );
 
   // Set an initial value for the characteristic
-  pTxCharacteristic->setValue("Hello World says Neil");
+  pTxCharacteristic->setValue("Hello World says Hudson");
 
   // Start the service
   pService->start();
